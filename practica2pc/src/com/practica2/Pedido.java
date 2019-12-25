@@ -4,6 +4,7 @@ public class Pedido{
     private boolean pagado;
     private boolean roto;
     private int estado;
+    private boolean atendido;
 
     public Pedido(){
         pagado = false;
@@ -21,5 +22,9 @@ public class Pedido{
 
     public int getEstado() {
         return estado;
+    }
+
+    public boolean isAtendido() {
+        return atendido;
     }
 }
