@@ -1,17 +1,21 @@
 package com.practica2;
+
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Almazon {
 
     public static BlockingQueue<Pedido> pedidos;
-    public static AtomicBoolean hayPedido;
-    public static Playa[] todasPlayas = new Playa[2];
+    public static BlockingQueue<Pedido> pedidosErroneos;
+    public static Playa[] todasPlayas;
     public static BlockingQueue<Pedido> cinta;
 
 
 
     public static void main(){
-        pedidos = new ArrayBlockingQueue<Pedido>(Integer.MAX_VALUE);
+        pedidos = new LinkedBlockingQueue<>();
+        pedidosErroneos = new LinkedBlockingQueue<>();
+        cinta = new LinkedBlockingQueue<>();
+        todasPlayas = new Playa[2]; // no 2, sino la constante asignada
     }
 }
