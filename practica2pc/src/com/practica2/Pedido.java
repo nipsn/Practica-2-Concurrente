@@ -1,30 +1,35 @@
 package com.practica2;
 
-public class Pedido{
-    private boolean pagado;
-    private boolean roto;
-    private int estado;
-    private boolean atendido;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 
-    public Pedido(){
-        pagado = false;
-        roto = false;
-        estado = 0;
+public class Pedido{
+    private static int numPedidos = 0;
+    private int id;
+    private boolean pagado;
+    private ArrayList<Integer> listaProductos;
+
+    public Pedido(ArrayList<Integer> productos, boolean pagado){
+        id = numPedidos;
+        numPedidos++;
+        this.pagado = pagado;
+        listaProductos = productos;
+    }
+    public Pedido(ArrayList<Integer> productos, int id){
+        this.id = id;
+        pagado = false; // no me importa
+        listaProductos = productos;
     }
 
     public boolean isPagado() {
         return pagado;
     }
 
-    public boolean isRoto() {
-        return roto;
+    public int getId() {
+        return id;
     }
 
-    public int getEstado() {
-        return estado;
-    }
-
-    public boolean isAtendido() {
-        return atendido;
+    public ArrayList<Integer> getListaProductos() {
+        return listaProductos;
     }
 }
