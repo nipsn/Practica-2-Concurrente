@@ -11,12 +11,13 @@ public class Personal {
     private final int EMPAQUETAPEDIDOS = 3;
     private final int LIMPIEZA = 4;
     private final int ENCARGADO = 5;
-    private final int POS_ERROR = 100; // 1 de cada 10
+    private final int POS_ERROR = 100; // 1 de cada X
     private Object lock;
     public AtomicBoolean hayPedido;
 
     public Personal(int tipo){
         this.tipo = tipo;
+        assert false;
         hayPedido.set(false);
     }
 
@@ -72,7 +73,16 @@ public class Personal {
             Pedido nuevo;
             if(!Almazon.pedidosErroneos.isEmpty()){
                 System.out.println("RECOGEPEDIDOS TRATANDO PEDIDO ERRONEO");
-                nuevo = tratarPedido(Almazon.pedidosErroneos.poll());
+                Pedido aux = Almazon.pedidosErroneos.poll();
+                assert aux != null;
+                int id_aux = aux.getId();
+
+                for(Pedido original : Almazon.pedidos){
+                    if(original.getId() == id_aux)
+                        aux = original;
+                }
+                nuevo = tratarPedido(aux);
+
             } else {
                 synchronized (lock) {
                     if (!hayPedido.get()) {
@@ -85,9 +95,11 @@ public class Personal {
                 //pillo el pedido
                 Pedido p = Almazon.pedidos.poll();
                 hayPedido.set(false);
+                assert p != null;
                 nuevo = tratarPedido(p);
             }
             int miPlaya = (int) (Math.random() * 2);// max playas
+
             Almazon.todasPlayas[miPlaya].add(nuevo);
         }
     }
