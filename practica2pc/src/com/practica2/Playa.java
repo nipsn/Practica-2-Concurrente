@@ -36,5 +36,7 @@ public class Playa {
     public boolean isFull(){
         return contenido.size() == MAX;
     }
-
+    public boolean isEmpty(){
+        return contenido.isEmpty();
+    }
 }

@@ -37,4 +37,8 @@ public class Pedido{
     public ArrayList<Integer> getListaProductos() {
         return listaProductos;
     }
+
+    public void setId(int id) {
+        this.id = id;
+    }
 }
