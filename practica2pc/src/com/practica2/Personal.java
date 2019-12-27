@@ -2,6 +2,7 @@ package com.practica2;
 
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Personal {
     private int tipo;
@@ -12,35 +13,38 @@ public class Personal {
     private final int LIMPIEZA = 4;
     private final int ENCARGADO = 5;
     private final int POS_ERROR = 100; // 1 de cada 10
-    private Object lock;
-    public AtomicBoolean hayPedido;
+    private final int POS_ROTURA = 20;// el 5%
+    private Object lock, lock1;
+    private AtomicInteger locklimpieza;
+    public AtomicBoolean hayPedido, pedidoEnviado, limpiar;
 
-    public Personal(int tipo){
+    public Personal(int tipo) {
         this.tipo = tipo;
         hayPedido.set(false);
     }
 
-    public void tarea(){
-        if(this.tipo == ADMINISTRATIVO){
+    public void tarea() throws InterruptedException {
+        if (this.tipo == ADMINISTRATIVO) {
             trabajoAdministrativo();
-        } else if (this.tipo == RECOGEPEDIDOS){
+        } else if (this.tipo == RECOGEPEDIDOS) {
             try {
                 trabajoRecogePedidos();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-        } else if (this.tipo == EMPAQUETAPEDIDOS){
-            //trabajoEmpaquetaPedidos();
-        } else if(this.tipo == LIMPIEZA){
-            //trabajoLimpieza();
+        } else if (this.tipo == EMPAQUETAPEDIDOS) {
+            trabajoEmpaquetaPedidos();
+        } else if (this.tipo == LIMPIEZA) {
+            trabajoLimpieza();
         } else if (this.tipo == ENCARGADO) {
-            trabajoEncargado();
+            //trabajoEncargado();
         }
     }
-    public void trabajoAdministrativo(){
-        while(true){
+
+    public void trabajoAdministrativo() {
+        while (true) {
             Pedido p = Almazon.pedidos.peek();
-            if(p != null && p.isPagado()) {
+            if (p != null && p.isPagado()) {
                 hayPedido.set(true);
                 synchronized (lock) {
                     lock.notify();
@@ -52,10 +56,10 @@ public class Personal {
 
     private Pedido tratarPedido(Pedido inicial) throws InterruptedException {
         ArrayList<Integer> carrito = new ArrayList<>();
-        for (Integer i: inicial.getListaProductos()) {
+        for (Integer i : inicial.getListaProductos()) {
             int num;
             num = (int) (Math.random() * POS_ERROR);
-            if(num % POS_ERROR == 0){
+            if (num % POS_ERROR == 0) {
                 // hay error
                 carrito.add(inicial.getListaProductos().get(i) + 1);
             } else {
@@ -64,13 +68,13 @@ public class Personal {
             }
             Thread.sleep((long) (Math.random() * 2)); //de 0 a 2 segundos a dormir
         }
-        return new Pedido(carrito,inicial.getId());
+        return new Pedido(carrito, inicial.getId());
     }
 
     public void trabajoRecogePedidos() throws InterruptedException {
-        while(true){
+        while (true) {
             Pedido nuevo;
-            if(!Almazon.pedidosErroneos.isEmpty()){
+            if (!Almazon.pedidosErroneos.isEmpty()) {
                 System.out.println("RECOGEPEDIDOS TRATANDO PEDIDO ERRONEO");
                 nuevo = tratarPedido(Almazon.pedidosErroneos.poll());
             } else {
@@ -78,7 +82,7 @@ public class Personal {
                     if (!hayPedido.get()) {
                         while (!hayPedido.get())
                             System.out.println("RECOGEPEDIDOS SE BLOQUEA");
-                            lock.wait();
+                        lock.wait();
                     }
                 }
                 System.out.println("RECOGEPEDIDOS TRATA PEDIDO NUEVO");
@@ -91,15 +95,80 @@ public class Personal {
             Almazon.todasPlayas[miPlaya].add(nuevo);
         }
     }
-//    public void trabajoEmpaquetaPedidos(){
-//        while(true){
-//            for(int i = 0;i < 2;i++) {
-//                if (!Almazon.todasPlayas[i].isSucia()) {
-//                    Almazon.cinta.offer(Almazon.p.poll());
-//                }
-//            }
-//        }
-//    }
-//    public void trabajoLimpieza(){}
-    public void trabajoEncargado(){}
+
+    public boolean comprobarPedido(Pedido p) {
+        Pedido encontrado = new Pedido();
+        for (Pedido aux : Almazon.pedidos) {
+            if (aux.getId() == p.getId()) {
+                encontrado = aux;
+            }
+        }
+        return encontrado.getListaProductos().equals(p.getListaProductos());
+    }
+
+    public void trabajoEmpaquetaPedidos() {
+        while (true) {
+            int playaElegida = (int) (Math.random() * 2);
+            if (!Almazon.todasPlayas[playaElegida].isSucia()) {
+                Pedido p = Almazon.todasPlayas[playaElegida].poll();
+                int num;
+                num = (int) (Math.random() * POS_ROTURA);
+                if (num % POS_ROTURA == 0) {
+                    locklimpieza.set(playaElegida);
+                    limpiar.set(true);
+                    synchronized (locklimpieza) {
+                        notify();
+                    }
+
+                        if (comprobarPedido(p)) {
+                            System.out.println("EMPAQUETAPEDIDOS PEDIDO CORRECTO, SE ENVÍA");
+                            Almazon.cinta.offer(p);
+                            pedidoEnviado.set(true);//variable que controla si algún pedido ha sido envíado
+                            synchronized (lock1) {
+                                lock1.notify();//hay que poner la espera al administrativo para mandar el mensaje
+                            }
+
+                        } else {
+                            System.out.println("EMPAQUETAPEDIDOS ERROR EN EL PEDIDO, SE MANDA A REVISAR");
+                            Almazon.pedidosErroneos.offer(p);
+
+                        }
+                }
+            }
+        }
+    }
+
+    public void limpiarPlayas(int playaSucia) {
+        
+        if (playaSucia==-1) {//cuando nos pasan una playa especifica a limpiar
+            for (int i = 0; i < 2; i++) {
+                System.out.println("LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
+                Almazon.todasPlayas[i].setSucia(false);
+            }
+        } else {//cuando pase cierto numero pedidos y se limpien todas las playas
+            if (Almazon.todasPlayas[playaSucia].isSucia()) {//cuando nos pasan una playa especifica a limpiar
+                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaSucia);
+                Almazon.todasPlayas[playaSucia].setSucia(false); //no se como acceder a cada posiscion para borrar
+            }
+
+        }
+    }
+
+
+    public void trabajoLimpieza() throws InterruptedException {
+        while (true) {
+            synchronized (locklimpieza) {
+                while (!limpiar.get()) {
+                    locklimpieza.wait();
+                }
+            }
+
+            limpiarPlayas(locklimpieza.get());
+            locklimpieza.set(-1);
+
+        }
+    }
+
 }
+   // public void trabajoEncargado(){}
+//}
