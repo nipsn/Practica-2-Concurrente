@@ -15,6 +15,11 @@ public class Pedido{
         this.pagado = pagado;
         listaProductos = productos;
     }
+    public Pedido(){
+        id=-1;
+        pagado=false;
+        listaProductos=new ArrayList<>();
+    }
     public Pedido(ArrayList<Integer> productos, int id){
         this.id = id;
         pagado = false; // no me importa
