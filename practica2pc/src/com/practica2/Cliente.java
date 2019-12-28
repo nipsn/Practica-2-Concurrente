@@ -12,7 +12,7 @@ public class Cliente {
 
         while(true){
             Almazon.pedidos.add(new Pedido(compra,true));
-            Thread.sleep(3000);
+            Thread.sleep(5000);
         }
     }
 }

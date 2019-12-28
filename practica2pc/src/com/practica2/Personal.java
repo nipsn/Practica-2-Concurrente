@@ -10,7 +10,7 @@ public class Personal {
     private int tipo;
 
     private final int POS_ERROR = 100; // 1 de cada 100
-    private final int POS_PEDIDO_ROTO = 20;// el 5%
+    private final int POS_PEDIDO_ROTO = 2;// el 5%
 
     private AtomicInteger playaALimpiar;
     public AtomicBoolean hayPedidoNuevo;
@@ -42,7 +42,7 @@ public class Personal {
         } else if (this.tipo == Almazon.T_EMPAQUETAPEDIDOS) {
             trabajoEmpaquetaPedidos();
         } else if (this.tipo == Almazon.T_LIMPIEZA) {
-            //trabajoLimpieza();
+            trabajoLimpieza();
         } else if (this.tipo == Almazon.T_ENCARGADO) {
             //trabajoEncargado();
         }
@@ -58,9 +58,9 @@ public class Personal {
                     canalComunicacion.notify();
                 }
                 System.out.println("ADMINISTRATIVO PEDIDO CORRECTO");
-
             }
-            Thread.sleep(5000);
+            Thread.sleep(1000);
+
             //ademas recibe notificacion de empaquetapedidos cuando un producto sale para mandar un correo (y hacer las gestiones oportunas)
         }
     }
@@ -138,11 +138,10 @@ public class Personal {
                     Pedido p = Almazon.todasPlayas[playaElegida].poll();
 
                     int num = (int) (Math.random() * POS_PEDIDO_ROTO);
-                    boolean llamoLimpieza = p.getId() % 10 == 0;
+                    boolean llamoLimpieza = (p.getId()+1) % 10 == 0;
 
-                    if(!llamoLimpieza) playaALimpiar.set(playaElegida);
-
-                    if (num % POS_PEDIDO_ROTO == 0 || llamoLimpieza) {
+                    playaALimpiar.set(playaElegida);
+                    if (num % POS_PEDIDO_ROTO == 0) {
                         synchronized (canalComunicacion) {
                             // llama y se espera hasta que limpien
                             canalComunicacion.notify();
@@ -165,25 +164,26 @@ public class Personal {
                         System.out.println("EMPAQUETAPEDIDOS ERROR EN EL PEDIDO, SE MANDA A REVISAR");
                         Almazon.pedidosErroneos.offer(p);
                     }
+                } else {
+
                 }
             }
         }
     }
 
-    public void limpiarPlaya(int playaSucia) {
-        if (playaSucia==-1) {
+    public void limpiarPlaya() {
+        if (playaALimpiar.get()==-1) {
             System.out.println("LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
             for (int i = 0; i < 2; i++) {
                 Almazon.todasPlayas[i].setSucia(false);
             }
         } else {
-            if (Almazon.todasPlayas[playaSucia].isSucia()) {
-                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaSucia);
-                Almazon.todasPlayas[playaSucia].setSucia(false);
+            if (Almazon.todasPlayas[playaALimpiar.get()].isSucia()) {
+                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaALimpiar.get());
+                Almazon.todasPlayas[playaALimpiar.get()].setSucia(false);
             }
         }
     }
-
 
     public void trabajoLimpieza() {
         while (true) {
@@ -195,13 +195,12 @@ public class Personal {
                 }
             }
 
-            limpiarPlaya(playaALimpiar.get());
+            limpiarPlaya();
             playaALimpiar.set(-1);
 
             synchronized (canalComunicacion){
                 canalComunicacion.notifyAll();
             }
-
         }
     }
 
