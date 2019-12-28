@@ -16,10 +16,11 @@ public class Personal {
     public static AtomicBoolean hayPedidoNuevo;
     public static AtomicBoolean limpiar;
 
-    private static ReentrantLock mutex1 = new ReentrantLock();
-    private static ReentrantLock mutex2 = new ReentrantLock();
-    private static ReentrantLock mutex3 = new ReentrantLock();
-    private static ReentrantLock mutex4 = new ReentrantLock();
+    private static ReentrantLock mutexPlayas = new ReentrantLock();
+    private static ReentrantLock mutexPedidos = new ReentrantLock();
+    private static ReentrantLock mutexPedidosEnviados = new ReentrantLock();
+    private static ReentrantLock mutexPedidosErroneos = new ReentrantLock();
+    private static ReentrantLock mutexNotificacionLimpieza = new ReentrantLock();
 
 
     private final Object canalComunicacion;
@@ -64,15 +65,15 @@ public class Personal {
             Thread.sleep(1000);
 
             //ademas recibe notificacion de empaquetapedidos cuando un producto sale para mandar un correo (y hacer las gestiones oportunas)
-            mutex3.lock();
+            mutexPedidosEnviados.lock();
             if(!Almazon.pedidosEnviados.isEmpty()){
                 Pedido e = Almazon.pedidosEnviados.poll();
-                if(mutex3.isHeldByCurrentThread())
-                    mutex3.unlock();
+                if(mutexPedidosEnviados.isHeldByCurrentThread())
+                    mutexPedidosEnviados.unlock();
                 System.out.println("    ADMINISTRATIVO ENVIA CORREO DEL PEDIDO " + e.getId());
             }else{
-                if(mutex3.isHeldByCurrentThread())
-                    mutex3.unlock();
+                if(mutexPedidosEnviados.isHeldByCurrentThread())
+                    mutexPedidosEnviados.unlock();
             }
         }
     }
@@ -104,11 +105,11 @@ public class Personal {
     public void trabajoRecogePedidos(){
         while (true) {
             Pedido nuevo;
-            mutex4.lock();
+            mutexPedidosErroneos.lock();
             if (!Almazon.pedidosErroneos.isEmpty()) {
                 nuevo = tratarPedido(Objects.requireNonNull(Almazon.pedidosErroneos.poll()));
-                if(mutex4.isHeldByCurrentThread())
-                    mutex4.unlock();
+                if(mutexPedidosErroneos.isHeldByCurrentThread())
+                    mutexPedidosErroneos.unlock();
                 System.out.println("RECOGEPEDIDOS TRATANDO PEDIDO ERRONEO");
                 int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
                 // si la playa esta sucia me bloqueo
@@ -117,8 +118,8 @@ public class Personal {
                 System.out.println("RECOGEPEDIDOS PONE PEDIDO EN PLAYA");
                 Almazon.todasPlayas[miPlaya].add(nuevo);
             } else {
-                if(mutex4.isHeldByCurrentThread())
-                    mutex4.unlock();
+                if(mutexPedidosErroneos.isHeldByCurrentThread())
+                    mutexPedidosErroneos.unlock();
                 System.out.println("RECOGEPEDIDOS ESPERA");
                 synchronized (canalComunicacion){
                     try {
@@ -128,15 +129,15 @@ public class Personal {
                     }
                 }
                 Pedido p;
-                mutex2.lock();
+                mutexPedidos.lock();
                 if(!Almazon.pedidos.isEmpty()){
-                p = Almazon.pedidos.poll();
-                    if(mutex2.isHeldByCurrentThread())
-                        mutex2.unlock();
-                assert p != null;
-                Almazon.pedidosRecogidos.offer(p);
-                System.out.println("RECOGEPEDIDOS TRATA PEDIDO NUEVO");
-                nuevo = tratarPedido(p);
+                    p = Almazon.pedidos.poll();
+                    if(mutexPedidos.isHeldByCurrentThread())
+                        mutexPedidos.unlock();
+                    assert p != null;
+                    Almazon.pedidosRecogidos.offer(p);
+                    System.out.println("RECOGEPEDIDOS TRATA PEDIDO NUEVO");
+                    nuevo = tratarPedido(p);
                     int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
                     // si la playa esta sucia me bloqueo
                     while(Almazon.todasPlayas[miPlaya].isSucia());
@@ -145,8 +146,8 @@ public class Personal {
                     Almazon.todasPlayas[miPlaya].add(nuevo);
                 }
                 else {
-                    if (mutex2.isHeldByCurrentThread())
-                        mutex2.unlock();
+                    if (mutexPedidos.isHeldByCurrentThread())
+                        mutexPedidos.unlock();
                 }
             }
 
@@ -168,12 +169,12 @@ public class Personal {
     public void trabajoEmpaquetaPedidos() {
         while (true) {
             int playaElegida = (int) (Math.random() * Almazon.NUM_PLAYAS);
-            mutex1.lock();
+            mutexPlayas.lock();
             if(!Almazon.todasPlayas[playaElegida].isEmpty()) {
                 if (!Almazon.todasPlayas[playaElegida].isSucia()) {
                     Pedido p = Almazon.todasPlayas[playaElegida].poll();
-                    if(mutex1.isHeldByCurrentThread())
-                        mutex1.unlock();
+                    if(mutexPlayas.isHeldByCurrentThread())
+                        mutexPlayas.unlock();
                     int num = (int) (Math.random() * POS_PEDIDO_ROTO);
                     boolean llamoLimpieza = (Almazon.cuentaEnviados.get()+1) % 10 == 0;
                     if(!llamoLimpieza) playaALimpiar.set(playaElegida);
@@ -184,7 +185,12 @@ public class Personal {
                         Almazon.todasPlayas[playaElegida].setSucia(true);
                         synchronized (canalComunicacion) {
                             // llama y se espera hasta que limpien
+                            mutexNotificacionLimpieza.lock();
+
                             canalComunicacion.notify();
+
+                            if(mutexNotificacionLimpieza.isHeldByCurrentThread())
+                                mutexNotificacionLimpieza.unlock();
                             try {
                                 canalComunicacion.wait();
                             } catch (InterruptedException e) {
@@ -206,8 +212,8 @@ public class Personal {
                     }
                 }
             }
-            if(mutex1.isHeldByCurrentThread())
-                mutex1.unlock();
+            if(mutexPlayas.isHeldByCurrentThread())
+                mutexPlayas.unlock();
         }
     }
 
@@ -220,6 +226,7 @@ public class Personal {
         } else {
             if (Almazon.todasPlayas[playaALimpiar.get()].isSucia()) {
                 System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaALimpiar.get());
+                
                 Almazon.todasPlayas[playaALimpiar.get()].setSucia(false);
             }
         }
