@@ -21,6 +21,7 @@ public class Personal {
     private static ReentrantLock mutexPedidosEnviados = new ReentrantLock();
     private static ReentrantLock mutexPedidosErroneos = new ReentrantLock();
     private static ReentrantLock mutexNotificacionLimpieza = new ReentrantLock();
+    private static ReentrantLock mutexLimpieza = new ReentrantLock();
 
 
     private final Object canalComunicacion;
@@ -218,16 +219,20 @@ public class Personal {
     }
 
     public void limpiarPlaya() {
+        mutexLimpieza.lock();
         if (playaALimpiar.get()==-1) {
-            System.out.println("                    LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
             for (int i = 0; i < Almazon.NUM_PLAYAS; i++) {
                 Almazon.todasPlayas[i].setSucia(false);
-            }
+            } if(mutexLimpieza.isHeldByCurrentThread())
+                mutexLimpieza.unlock();
+            System.out.println("                    LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
         } else {
             if (Almazon.todasPlayas[playaALimpiar.get()].isSucia()) {
-                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaALimpiar.get());
-                
                 Almazon.todasPlayas[playaALimpiar.get()].setSucia(false);
+                if(mutexLimpieza.isHeldByCurrentThread())
+                    mutexLimpieza.unlock();
+
+                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaALimpiar.get());
             }
         }
     }
