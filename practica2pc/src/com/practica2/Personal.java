@@ -2,23 +2,21 @@ package com.practica2;
 
 import java.util.ArrayList;
 import java.util.Objects;
-import java.util.concurrent.Exchanger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Personal {
     private int tipo;
 
     private final int POS_ERROR = 100; // 1 de cada 100
-    private final int POS_PEDIDO_ROTO = 2;// el 5%
+    private final int POS_PEDIDO_ROTO = 20;// el 5%
 
     public static AtomicInteger playaALimpiar;
-    public static AtomicInteger cuentaEnviados;
     public static AtomicBoolean hayPedidoNuevo;
-    public static AtomicBoolean pedidoEnviado;
     public static AtomicBoolean limpiar;
 
-    private Exchanger<Pedido> canalAdminRecogeP;
+    private static ReentrantLock mutex1 = new ReentrantLock();
 
     private final Object canalComunicacion;
 
@@ -26,11 +24,9 @@ public class Personal {
     public Personal(int tipo, Object comunicador) {
         this.tipo = tipo;
 
-        pedidoEnviado = new AtomicBoolean();
         hayPedidoNuevo = new AtomicBoolean();
         limpiar = new AtomicBoolean();
         playaALimpiar = new AtomicInteger(-1);
-        cuentaEnviados= new AtomicInteger(0);
 
         canalComunicacion = comunicador;
     }
@@ -64,6 +60,10 @@ public class Personal {
             Thread.sleep(1000);
 
             //ademas recibe notificacion de empaquetapedidos cuando un producto sale para mandar un correo (y hacer las gestiones oportunas)
+            if(!Almazon.pedidosEnviados.isEmpty()){
+                Pedido e = Almazon.pedidosEnviados.poll();
+                System.out.println("    ADMINISTRATIVO ENVIA CORREO DEL PEDIDO " + e.getId());
+            }
         }
     }
 
@@ -106,12 +106,13 @@ public class Personal {
                         e.printStackTrace();
                     }
                 }
-                Pedido p = Almazon.pedidos.peek();
-                System.out.println("RECOGEPEDIDOS TRATA PEDIDO NUEVO");
+                Pedido p = Almazon.pedidos.poll();
                 assert p != null;
+                Almazon.pedidosRecogidos.offer(p);
+                System.out.println("RECOGEPEDIDOS TRATA PEDIDO NUEVO");
                 nuevo = tratarPedido(p);
             }
-            int miPlaya = (int) (Math.random() * 2);// max playas
+            int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
             // si la playa esta sucia me bloqueo
             while(Almazon.todasPlayas[miPlaya].isSucia());
 
@@ -122,7 +123,7 @@ public class Personal {
 
     public boolean comprobarPedido(Pedido p) {
         Pedido encontrado = new Pedido();
-        for (Pedido aux : Almazon.pedidos) {
+        for (Pedido aux : Almazon.pedidosRecogidos) {
             if (aux.getId() == p.getId()) {
                 System.out.println("EMPAQUETAPEDIDOS HA ENCONTRADO EL PEDIDO ORIGINAL");
                 encontrado = aux;
@@ -134,13 +135,15 @@ public class Personal {
 
     public void trabajoEmpaquetaPedidos() {
         while (true) {
-            int playaElegida = (int) (Math.random() * 2);
+            int playaElegida = (int) (Math.random() * Almazon.NUM_PLAYAS);
+            mutex1.lock();
             if(!Almazon.todasPlayas[playaElegida].isEmpty()) {
                 if (!Almazon.todasPlayas[playaElegida].isSucia()) {
                     Pedido p = Almazon.todasPlayas[playaElegida].poll();
-
+                    if(mutex1.isHeldByCurrentThread())
+                        mutex1.unlock();
                     int num = (int) (Math.random() * POS_PEDIDO_ROTO);
-                    boolean llamoLimpieza = (cuentaEnviados.get()+1) % 10 == 0;
+                    boolean llamoLimpieza = (Almazon.cuentaEnviados.get()+1) % 10 == 0;
                     if(!llamoLimpieza) playaALimpiar.set(playaElegida);
 
 
@@ -159,26 +162,27 @@ public class Personal {
                     }
                     System.out.println("EMPAQUETAPEDIDOS COMPROBANDO PEDIDO");
                     if (comprobarPedido(p)) {
-                        System.out.println("EMPAQUETAPEDIDOS PEDIDO CORRECTO, SE ENVÍA");
-                        Almazon.cinta.offer(p);
-                        cuentaEnviados.getAndIncrement();
-                        pedidoEnviado.set(true);//variable que controla si algún pedido ha sido envíado
-//                           synchronized (lock1) {
-//                               lock1.notify();//hay que poner la espera al administrativo para mandar el mensaje
-//                           }
+                        Paquete paq = new Paquete(p.getListaProductos());
+                        paq.setSello(true);
+                        Almazon.cinta.offer(paq);
+                        Almazon.pedidosEnviados.offer(p);
+                        Almazon.cuentaEnviados.getAndIncrement();
+                        System.out.println("EMPAQUETAPEDIDOS ENVIA PEDIDO " + p.getId());
                     } else {
                         System.out.println("EMPAQUETAPEDIDOS ERROR EN EL PEDIDO, SE MANDA A REVISAR");
                         Almazon.pedidosErroneos.offer(p);
                     }
                 }
             }
+            if(mutex1.isHeldByCurrentThread())
+                mutex1.unlock();
         }
     }
 
     public void limpiarPlaya() {
         if (playaALimpiar.get()==-1) {
             System.out.println("                    LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < Almazon.NUM_PLAYAS; i++) {
                 Almazon.todasPlayas[i].setSucia(false);
             }
         } else {
@@ -207,6 +211,8 @@ public class Personal {
         }
     }
 
+    public void trabajoEncargado(){
+
+    }
+
 }
-   // public void trabajoEncargado(){}
-//}

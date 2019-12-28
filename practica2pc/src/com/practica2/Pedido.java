@@ -4,16 +4,16 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 
 public class Pedido{
-    private static int numPedidos = 0;
     private int id;
     private boolean pagado;
+    private boolean recogido;
     private ArrayList<Integer> listaProductos;
 
     public Pedido(ArrayList<Integer> productos, boolean pagado){
-        id = numPedidos;
-        numPedidos++;
+        id = Almazon.numPedidos.getAndIncrement();
         this.pagado = pagado;
         listaProductos = productos;
+        recogido = false;
     }
     public Pedido(){
         id=-1;
@@ -40,5 +40,9 @@ public class Pedido{
 
     public void setId(int id) {
         this.id = id;
+    }
+
+    public boolean isRecogido() {
+        return recogido;
     }
 }
