@@ -9,6 +9,7 @@ public class Cliente {
         compra.add(2);
         compra.add(3);
         compra.add(234);
+
         while(true){
             Almazon.pedidos.add(new Pedido(compra,true));
             Thread.sleep(3000);
