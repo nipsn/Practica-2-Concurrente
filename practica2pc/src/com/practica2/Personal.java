@@ -15,25 +15,20 @@ public class Personal {
     private final int LIMPIEZA = 4;
     private final int ENCARGADO = 5;
     private final int POS_ERROR = 100; // 1 de cada 100
-    private final int POS_ROTURA = 20;// el 5%
-    private final Object lock, lock1, lock2;
+    private final int POS_PEDIDO_ROTO = 20;// el 5%
     private AtomicInteger playaALimpiar;
-    public volatile AtomicBoolean hayPedido;
     public AtomicBoolean pedidoEnviado;
     public AtomicBoolean limpiar;
 
 
-    private Exchanger<Pedido> exchanger = new Exchanger<Pedido>();
+    private Exchanger<Pedido> canalAdminRecogeP;
 
-    public Personal(int tipo) {
+    public Personal(int tipo, Exchanger ex) {
         this.tipo = tipo;
-        hayPedido = new AtomicBoolean();
         pedidoEnviado = new AtomicBoolean();
         limpiar = new AtomicBoolean();
-        lock = new Object();
-        lock1 = new Object();
-        lock2 = new Object();
         playaALimpiar = new AtomicInteger(-1);
+        this.canalAdminRecogeP = ex;
     }
 
     public void tarea() throws InterruptedException {
@@ -55,7 +50,7 @@ public class Personal {
             Pedido p = Almazon.pedidos.peek();
             System.out.println("ADMINISTRATIVO COMPRUEBA PEDIDO");
             if (p != null && p.isPagado()) {
-                exchanger.exchange(p);
+                canalAdminRecogeP.exchange(p);
                 System.out.println("ADMINISTRATIVO PEDIDO CORRECTO");
 
             }
@@ -87,16 +82,16 @@ public class Personal {
     public void trabajoRecogePedidos() throws InterruptedException {
         while (true) {
             Pedido nuevo;
+            System.out.println("RECOGEPEDIDOS TRABAJA");
             if (!Almazon.pedidosErroneos.isEmpty()) {
                 System.out.println("RECOGEPEDIDOS TRATANDO PEDIDO ERRONEO");
                 nuevo = tratarPedido(Objects.requireNonNull(Almazon.pedidosErroneos.poll()));
             } else {
-                Pedido p = exchanger.exchange(null);
+                Pedido p = canalAdminRecogeP.exchange(null);
                 //hayPedido.set(false);
                 System.out.println("RECOGEPEDIDOS TRATA PEDIDO NUEVO");
                 //pillo el pedido
 //                hayPedido.set(false);
-                //Pedido p = Almazon.pedidos.peek();
                 assert p != null;
                 nuevo = tratarPedido(p);
             }
@@ -125,8 +120,8 @@ public class Personal {
                 if (!Almazon.todasPlayas[playaElegida].isSucia()) {
                     Pedido p = Almazon.todasPlayas[playaElegida].poll();
                     int num;
-                    num = (int) (Math.random() * POS_ROTURA);
-                    if (num % POS_ROTURA == 0) {
+                    num = (int) (Math.random() * POS_PEDIDO_ROTO);
+                    if (num % POS_PEDIDO_ROTO == 0) {
                         playaALimpiar.set(playaElegida);
                         limpiar.set(true);
 //                        synchronized (lock2) {
@@ -154,31 +149,31 @@ public class Personal {
 
     public void limpiarPlayas(int playaSucia) {
         
-        if (playaSucia==-1) {//cuando nos pasan una playa especifica a limpiar
-            for (int i = 0; i < 2; i++) {
-                System.out.println("LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
-                Almazon.todasPlayas[i].setSucia(false);
-            }
-        } else {//cuando pase cierto numero pedidos y se limpien todas las playas
-            if (Almazon.todasPlayas[playaSucia].isSucia()) {//cuando nos pasan una playa especifica a limpiar
-                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaSucia);
-                Almazon.todasPlayas[playaSucia].setSucia(false); //no se como acceder a cada posiscion para borrar
-            }
-
-        }
+//        if (playaSucia==-1) {//cuando nos pasan una playa especifica a limpiar
+//            for (int i = 0; i < 2; i++) {
+//                System.out.println("LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
+//                Almazon.todasPlayas[i].setSucia(false);
+//            }
+//        } else {//cuando pase cierto numero pedidos y se limpien todas las playas
+//            if (Almazon.todasPlayas[playaSucia].isSucia()) {//cuando nos pasan una playa especifica a limpiar
+//                System.out.println("LIMPIEZA, LIMPIANDO PLAYA " + playaSucia);
+//                Almazon.todasPlayas[playaSucia].setSucia(false); //no se como acceder a cada posiscion para borrar
+//            }
+//
+//        }
     }
 
 
     public void trabajoLimpieza() throws InterruptedException {
         while (true) {
-            synchronized (lock2) {
-                while (!limpiar.get()) {
-                    lock2.wait();
-                }
-            }
-
-            limpiarPlayas(playaALimpiar.get());
-            playaALimpiar.set(-1);
+//            synchronized (lock2) {
+//                while (!limpiar.get()) {
+//                    lock2.wait();
+//                }
+//            }
+//
+//            limpiarPlayas(playaALimpiar.get());
+//            playaALimpiar.set(-1);
 
         }
     }

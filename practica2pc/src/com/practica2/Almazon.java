@@ -10,6 +10,7 @@ public class Almazon {
     public static BlockingQueue<Pedido> pedidosErroneos;
     public static Playa[] todasPlayas;
     public static BlockingQueue<Pedido> cinta;
+    private static Exchanger<Pedido> canal1;
 
     private final int N_ADMINISTRATIVOS = 1;
     private final int N_RECOGEPEDIDOS = 1;
@@ -25,6 +26,7 @@ public class Almazon {
         todasPlayas = new Playa[2];// no 2, sino la constante asignada
         todasPlayas[0] = new Playa();
         todasPlayas[1] = new Playa();
+        canal1 = new Exchanger<>();
 
         new Almazon().exec();
     }
@@ -35,7 +37,7 @@ public class Almazon {
         clientela.add(new Cliente());
 
         for(int i = 0;i < 4;i++){
-            personal.add(new Personal(i+1));
+            personal.add(new Personal(i+1, canal1));
         }
         for(Personal p : personal){
             new Thread(() -> {
