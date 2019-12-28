@@ -12,10 +12,11 @@ public class Personal {
     private final int POS_ERROR = 100; // 1 de cada 100
     private final int POS_PEDIDO_ROTO = 2;// el 5%
 
-    private AtomicInteger playaALimpiar;
-    public AtomicBoolean hayPedidoNuevo;
-    public AtomicBoolean pedidoEnviado;
-    public AtomicBoolean limpiar;
+    public static AtomicInteger playaALimpiar;
+    public static AtomicInteger cuentaEnviados;
+    public static AtomicBoolean hayPedidoNuevo;
+    public static AtomicBoolean pedidoEnviado;
+    public static AtomicBoolean limpiar;
 
     private Exchanger<Pedido> canalAdminRecogeP;
 
@@ -29,6 +30,7 @@ public class Personal {
         hayPedidoNuevo = new AtomicBoolean();
         limpiar = new AtomicBoolean();
         playaALimpiar = new AtomicInteger(-1);
+        cuentaEnviados= new AtomicInteger(0);
 
         canalComunicacion = comunicador;
     }
@@ -138,10 +140,13 @@ public class Personal {
                     Pedido p = Almazon.todasPlayas[playaElegida].poll();
 
                     int num = (int) (Math.random() * POS_PEDIDO_ROTO);
-                    boolean llamoLimpieza = (p.getId()+1) % 10 == 0;
+                    boolean llamoLimpieza = (cuentaEnviados.get()+1) % 10 == 0;
+                    if(!llamoLimpieza) playaALimpiar.set(playaElegida);
 
-                    playaALimpiar.set(playaElegida);
-                    if (num % POS_PEDIDO_ROTO == 0) {
+
+                    if (num % POS_PEDIDO_ROTO == 0 || llamoLimpieza) {
+                        System.out.println("EMPAQUETAPEDIDOS, PLAYA SUCIA " + playaALimpiar.get());
+                        Almazon.todasPlayas[playaElegida].setSucia(true);
                         synchronized (canalComunicacion) {
                             // llama y se espera hasta que limpien
                             canalComunicacion.notify();
@@ -156,6 +161,7 @@ public class Personal {
                     if (comprobarPedido(p)) {
                         System.out.println("EMPAQUETAPEDIDOS PEDIDO CORRECTO, SE ENVÍA");
                         Almazon.cinta.offer(p);
+                        cuentaEnviados.getAndIncrement();
                         pedidoEnviado.set(true);//variable que controla si algún pedido ha sido envíado
 //                           synchronized (lock1) {
 //                               lock1.notify();//hay que poner la espera al administrativo para mandar el mensaje
@@ -164,8 +170,6 @@ public class Personal {
                         System.out.println("EMPAQUETAPEDIDOS ERROR EN EL PEDIDO, SE MANDA A REVISAR");
                         Almazon.pedidosErroneos.offer(p);
                     }
-                } else {
-
                 }
             }
         }
@@ -173,7 +177,7 @@ public class Personal {
 
     public void limpiarPlaya() {
         if (playaALimpiar.get()==-1) {
-            System.out.println("LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
+            System.out.println("                    LIMPIEZA, LIMPIANDO TODAS LAS PLAYAS");
             for (int i = 0; i < 2; i++) {
                 Almazon.todasPlayas[i].setSucia(false);
             }
@@ -194,7 +198,6 @@ public class Personal {
                     e.printStackTrace();
                 }
             }
-
             limpiarPlaya();
             playaALimpiar.set(-1);
 
