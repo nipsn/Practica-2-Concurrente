@@ -27,6 +27,7 @@ public class Personal {
 
     private static ReentrantLock mutexPlayas = new ReentrantLock();
     private static ReentrantLock mutexPedidos = new ReentrantLock();
+    private static ReentrantLock mutexLimpieza = new ReentrantLock();
     private static ReentrantLock mutexPedidosEnviados = new ReentrantLock();
     private static ReentrantLock mutexPedidosErroneos = new ReentrantLock();
     private static ReentrantLock mutexNotificacionLimpieza = new ReentrantLock();
@@ -223,15 +224,17 @@ public class Personal {
                             canalComunicacion.notify();
                             if(mutexNotificacionLimpieza.isHeldByCurrentThread())
                                 mutexNotificacionLimpieza.unlock();
-
-                        }
-                        synchronized (canalComunicacion2) {
                             try {
-                                canalComunicacion2.wait();
+                                canalComunicacion.wait();
                             } catch (InterruptedException e) {
                                 e.printStackTrace();
                             }
+
+
                         }
+//                        synchronized (canalComunicacion2) {
+//
+//                        }
                     }
                     if (comprobarPedido(p)) {
                         Paquete paq = new Paquete(p.getListaProductos());
@@ -252,18 +255,19 @@ public class Personal {
     }
 
     public void limpiarPlaya() {
+        mutexLimpieza.lock();
         if (playaALimpiar.get()==-1) {
-            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " LIMPIANDO TODAS LAS PLAYAS" + ESPACIO + ANSI_RESET);
             for (int i = 0; i < Almazon.NUM_PLAYAS; i++) {
                 Almazon.todasPlayas[i].setSucia(false);
             }
+            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " LIMPIANDO TODAS LAS PLAYAS" + ESPACIO + ANSI_RESET);
         } else {
             if (Almazon.todasPlayas[playaALimpiar.get()].isSucia()) {
-                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " LIMPIANDO PLAYA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
-
                 Almazon.todasPlayas[playaALimpiar.get()].setSucia(false);
+                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " LIMPIANDO PLAYA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
             }
         }
+        if(mutexLimpieza.isHeldByCurrentThread()) mutexLimpieza.unlock();
     }
 
     public void trabajoLimpieza() {
@@ -278,8 +282,8 @@ public class Personal {
             limpiarPlaya();
             playaALimpiar.set(-1);
 
-            synchronized (canalComunicacion2){
-                canalComunicacion2.notify();
+            synchronized (canalComunicacion){
+                canalComunicacion.notifyAll();
             }
         }
     }
