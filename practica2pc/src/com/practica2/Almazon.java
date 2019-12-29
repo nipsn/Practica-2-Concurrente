@@ -1,7 +1,8 @@
 package com.practica2;
 
 import java.util.ArrayList;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Almazon {
@@ -15,10 +16,11 @@ public class Almazon {
 
     private static Object lockAdminRecogep;
     private static Object lockLimpiezaEmpaquetaP;
+    private static Object lockLimpiezaEmpaquetaPVuelta;
 
     private final int N_CLIENTES = 3;
     private final int N_ADMINISTRATIVOS = 2;
-    private final int N_RECOGEPEDIDOS = 3;
+    private final int N_RECOGEPEDIDOS = 4;
     private final int N_EMPAQUETAPEDIDOS = 3;
     private final int N_LIMPIEZA = 2;
     private final int N_ENCARGADOS = 1;
@@ -41,13 +43,14 @@ public class Almazon {
         cinta = new LinkedBlockingQueue<>();
         pedidosEnviados = new LinkedBlockingQueue<>();
 
-        todasPlayas = new Playa[NUM_PLAYAS];// todo numero de playas dinamico
+        todasPlayas = new Playa[NUM_PLAYAS];
 
         for(int i = 0;i < NUM_PLAYAS;i++)
             todasPlayas[i] = new Playa();
 
         lockAdminRecogep = new Object();
         lockLimpiezaEmpaquetaP = new Object();
+        lockLimpiezaEmpaquetaPVuelta = new Object();
 
         numPedidos = new AtomicInteger();
         cuentaEnviados = new AtomicInteger();
@@ -63,21 +66,18 @@ public class Almazon {
             clientela.add(new Cliente());
 
         for(int i = 0;i < N_ADMINISTRATIVOS;i++)
-            personal.add(new Personal(T_ADMINISTRATIVO, lockAdminRecogep));
+            personal.add(new Personal(T_ADMINISTRATIVO, lockAdminRecogep, new Object()));
 
         for(int i = 0;i < N_RECOGEPEDIDOS;i++)
-            personal.add(new Personal(T_RECOGEPEDIDOS, lockAdminRecogep));
+            personal.add(new Personal(T_RECOGEPEDIDOS, lockAdminRecogep, new Object()));
 
         for(int i = 0;i < N_EMPAQUETAPEDIDOS;i++)
-            personal.add(new Personal(T_EMPAQUETAPEDIDOS, lockLimpiezaEmpaquetaP));
+            personal.add(new Personal(T_EMPAQUETAPEDIDOS, lockLimpiezaEmpaquetaP, lockLimpiezaEmpaquetaPVuelta));
 
         for(int i = 0;i < N_LIMPIEZA;i++)
-            personal.add(new Personal(T_LIMPIEZA, lockLimpiezaEmpaquetaP));
+            personal.add(new Personal(T_LIMPIEZA, lockLimpiezaEmpaquetaP, lockLimpiezaEmpaquetaPVuelta));
 
 
-//        for(int i = 0;i < 4;i++){
-//            personal.add(new Personal(i+1, canal1));
-//        }
         for(Personal p : personal){
             new Thread(() -> {
                 try {
