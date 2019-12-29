@@ -7,6 +7,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Almazon {
 
+    public static final int nMinutosSon24HorasReales = 10;
+    public static final int NUM_TURNOS = 3;
+    public static int segundoConvertido;
+
+    public static ArrayList<Cliente> clientela;
+    public static ArrayList<Personal> personal;
+
     public static BlockingQueue<Pedido> pedidos;
     public static BlockingQueue<Pedido> pedidosRecogidos;
     public static BlockingQueue<Pedido> pedidosErroneos;
@@ -37,6 +44,9 @@ public class Almazon {
     public static AtomicInteger cuentaEnviados;
 
     public static void main(String[] args) throws InterruptedException {
+
+        segundoConvertido = nMinutosSon24HorasReales * 60 / 86400;
+
         pedidos = new LinkedBlockingQueue<>();
         pedidosRecogidos = new LinkedBlockingQueue<>();
         pedidosErroneos = new LinkedBlockingQueue<>();
@@ -59,8 +69,8 @@ public class Almazon {
     }
 
     public void exec() throws InterruptedException {
-        ArrayList<Cliente> clientela = new ArrayList<>();
-        ArrayList<Personal> personal = new ArrayList<>();
+        clientela = new ArrayList<>();
+        personal = new ArrayList<>();
 
         for(int i = 0;i < N_CLIENTES;i++)
             clientela.add(new Cliente());

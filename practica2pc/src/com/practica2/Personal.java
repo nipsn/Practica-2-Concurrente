@@ -1,8 +1,6 @@
 package com.practica2;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -11,45 +9,35 @@ public class Personal {
 
     public static final String ANSI_RESET = "\u001B[0m";
     public static final String ANSI_BLACK = "\u001B[30m";
+    public static final String ANSI_RED_BACKGROUND = "\u001B[41m";
     public static final String ANSI_GREEN_BACKGROUND = "\u001B[42m";
     public static final String ANSI_YELLOW_BACKGROUND = "\u001B[43m";
     public static final String ANSI_BLUE_BACKGROUND = "\u001B[44m";
     public static final String ANSI_PURPLE_BACKGROUND = "\u001B[45m";
     public static final String ESPACIO = " ";
 
-    private int tipo;
 
-    private final int POS_ERROR = 2; // 1 de cada 100
+    private final int POS_ERROR = 100; // 1 de cada 100
     private final int POS_PEDIDO_ROTO = 20; // el 5%
 
     public static AtomicInteger playaALimpiar;
     public static AtomicBoolean hayPedidoNuevo;
     public static AtomicBoolean limpiar;
 
+
     private static ReentrantLock mutexPlayas = new ReentrantLock();
     private static ReentrantLock mutexPedidos = new ReentrantLock();
-    private static ReentrantLock mutexLimpieza = new ReentrantLock();
     private static ReentrantLock mutexPedidosEnviados = new ReentrantLock();
     private static ReentrantLock mutexPedidosErroneos = new ReentrantLock();
     private static ReentrantLock mutexNotificacionLimpieza = new ReentrantLock();
-    private static ReentrantLock leerPedidos = new ReentrantLock();
 
-
+    private int tipo;
+    private boolean trabajo;
     private final Object canalComunicacion;
     private final Object canalComunicacion2;
+    private long id;
+    private Thread.State estado;
 
-//    // Constructor general
-//    public Personal(int tipo, Object comunicador) {
-//        this.tipo = tipo;
-//
-//        hayPedidoNuevo = new AtomicBoolean();
-//        limpiar = new AtomicBoolean();
-//        playaALimpiar = new AtomicInteger(-1);
-//
-//        canalComunicacion = comunicador;
-//        canalComunicacion2 = new Object();
-//        // si se inicializa con un solo object no me importa cual sea comunicador2
-//    }
     public Personal(int tipo, Object comunicador, Object comunicador2) {
         this.tipo = tipo;
 
@@ -63,8 +51,17 @@ public class Personal {
 
 
     public void tarea() throws InterruptedException {
+        this.id = Thread.currentThread().getId();
+
         if (this.tipo == Almazon.T_ADMINISTRATIVO) {
-            trabajoAdministrativo();
+            try {
+                trabajoAdministrativo();
+            } catch (InterruptedException e){
+                // pongo la variable
+                // TODO: IMPLEMENTAR MANEJADOR DE INTERRUPCION (BOOLEANO TRABAJA/NO TRABAJA)
+                // TODO: CAMBIAR LOS BUCLES WHILE?? QUIZA DENTRO DEL WHILE DISTINGUIR SI TRABAJA O NO
+                // TODO: LA INTERRUPCION DONDE VA?? EN CADA trabajo() O PUEDE IR EN tarea() ??
+            }
         } else if (this.tipo == Almazon.T_RECOGEPEDIDOS) {
             trabajoRecogePedidos();
         } else if (this.tipo == Almazon.T_EMPAQUETAPEDIDOS) {
@@ -72,7 +69,7 @@ public class Personal {
         } else if (this.tipo == Almazon.T_LIMPIEZA) {
             trabajoLimpieza();
         } else if (this.tipo == Almazon.T_ENCARGADO) {
-            //trabajoEncargado();
+            trabajoEncargado();
         }
     }
 
@@ -85,20 +82,21 @@ public class Personal {
                     hayPedidoNuevo.set(true);
                     canalComunicacion.notify();
                 }
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + Thread.currentThread().getId() + " PEDIDO CORRECTO "  + p.getId() + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " PEDIDO CORRECTO "  + p.getId() + ESPACIO + ANSI_RESET);
             } else {
 
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + Thread.currentThread().getId() + " PEDIDO INCORRECTO O NO HAY PEDIDO" + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " PEDIDO INCORRECTO O NO HAY PEDIDO" + ESPACIO + ANSI_RESET);
             }
             Thread.sleep(1000);
 
             //ademas recibe notificacion de empaquetapedidos cuando un producto sale para mandar un correo (y hacer las gestiones oportunas)
             mutexPedidosEnviados.lock();
+
             if(!Almazon.pedidosEnviados.isEmpty()){
                 Pedido e = Almazon.pedidosEnviados.poll();
                 if(mutexPedidosEnviados.isHeldByCurrentThread())
                     mutexPedidosEnviados.unlock();
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + Thread.currentThread().getId() + " ENVIA CORREO DEL PEDIDO " + e.getId() + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " ENVIA CORREO DEL PEDIDO " + e.getId() + ESPACIO + ANSI_RESET);
             }else{
                 if(mutexPedidosEnviados.isHeldByCurrentThread())
                     mutexPedidosEnviados.unlock();
@@ -145,6 +143,7 @@ public class Personal {
         return new Pedido(carrito, inicial.getNotaOriginal(), inicial.getId());
     }
 
+
     public void trabajoRecogePedidos(){
         while (true) {
             Pedido nuevo;
@@ -154,20 +153,20 @@ public class Personal {
                 if(mutexPedidosErroneos.isHeldByCurrentThread())
                     mutexPedidosErroneos.unlock();
 
-                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + Thread.currentThread().getId() + " TRATANDO PEDIDO ERRONEO" + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATANDO PEDIDO ERRONEO" + ESPACIO + ANSI_RESET);
 
                 int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
                 // si la playa esta sucia me bloqueo
                 while(Almazon.todasPlayas[miPlaya].isSucia());
 
-                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + Thread.currentThread().getId() + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
                 Almazon.todasPlayas[miPlaya].add(nuevo);
 
             } else {
                 if(mutexPedidosErroneos.isHeldByCurrentThread())
                     mutexPedidosErroneos.unlock();
 
-                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + Thread.currentThread().getId() + " ESPERA" + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " ESPERA" + ESPACIO + ANSI_RESET);
 
                 synchronized (canalComunicacion){
                     try {
@@ -188,7 +187,7 @@ public class Personal {
                     assert p != null;
                     Almazon.pedidosRecogidos.offer(p);
 
-                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + Thread.currentThread().getId() + " TRATA PEDIDO NUEVO" + ESPACIO + ANSI_RESET);
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATA PEDIDO NUEVO" + ESPACIO + ANSI_RESET);
 
                     nuevo = recogerPedidos(p);
                     int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
@@ -196,7 +195,7 @@ public class Personal {
                     // si la playa esta sucia me bloqueo
                     while(Almazon.todasPlayas[miPlaya].isSucia());
 
-                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + Thread.currentThread().getId() + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
                     Almazon.todasPlayas[miPlaya].add(nuevo);
 
                 } else {
@@ -234,7 +233,7 @@ public class Personal {
 
 
                     if (num % POS_PEDIDO_ROTO == 0 || llamoLimpieza) {
-                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + Thread.currentThread().getId() + " DETECTA PLAYA SUCIA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
+                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " DETECTA PLAYA SUCIA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
                         Almazon.todasPlayas[playaElegida].setSucia(true);
 
                         synchronized (canalComunicacion) {
@@ -258,7 +257,7 @@ public class Personal {
                         Almazon.cinta.offer(paq);
                         Almazon.pedidosEnviados.offer(p);
                         Almazon.cuentaEnviados.getAndIncrement();
-                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + Thread.currentThread().getId() + " ENVIA PEDIDO " + p.getId() + ESPACIO + ANSI_RESET);
+                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " ENVIA PEDIDO " + p.getId() + ESPACIO + ANSI_RESET);
                     } else {
                         System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + Thread.currentThread().getId() + " DETECTA ERROR EN EL PEDIDO " + p.getId() + " SE MANDA A REVISAR" + ESPACIO + ANSI_RESET);
                         Almazon.pedidosErroneos.offer(p);
@@ -275,11 +274,11 @@ public class Personal {
             for (int i = 0; i < Almazon.NUM_PLAYAS; i++) {
                 Almazon.todasPlayas[i].setSucia(false);
             }
-            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " LIMPIANDO TODAS LAS PLAYAS" + ESPACIO + ANSI_RESET);
+            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " LIMPIANDO TODAS LAS PLAYAS" + ESPACIO + ANSI_RESET);
         } else {
             if (Almazon.todasPlayas[playaALimpiar.get()].isSucia()) {
                 Almazon.todasPlayas[playaALimpiar.get()].setSucia(false);
-                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " LIMPIANDO PLAYA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " LIMPIANDO PLAYA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
             }
         }
     }
@@ -293,10 +292,10 @@ public class Personal {
                     e.printStackTrace();
                 }
             }
-            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " HA DESPERTADO " + ESPACIO + ANSI_RESET);
+            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " HA DESPERTADO " + ESPACIO + ANSI_RESET);
 
             if(limpiar.get()) {
-                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + Thread.currentThread().getId() + " VA A LIMPIAR UNA PLAYA " + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " VA A LIMPIAR UNA PLAYA " + ESPACIO + ANSI_RESET);
                 limpiarPlaya();
                 playaALimpiar.set(-1);
                 limpiar.set(false);
@@ -309,8 +308,74 @@ public class Personal {
         }
     }
 
-    public void trabajoEncargado(){
 
+    public void comprobarEstadoAlmazon(){
+        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "------------------------------------------------------" + ESPACIO + ANSI_RESET);
+        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: ENCARGADO REVISA:" + ESPACIO + ANSI_RESET);
+        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: LA LISTA DE PEDIDOS TIENE " + Almazon.pedidos.size() + " ELEMENTOS ACTUALMENTE" + ESPACIO + ANSI_RESET);
+        System.out.println("ENCARGADO: LA LISTA DE PEDIDOS ERRONEOS TIENE " + Almazon.pedidosErroneos.size() + " ELEMENTOS ACTUALMENTE");
+        for(int i = 0;i < Almazon.NUM_PLAYAS;i++){
+            if(!Almazon.todasPlayas[i].isEmpty()) {
+                System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: LA PLAYA " + i + " ESTA EN USO" + ESPACIO + ANSI_RESET);
+            } else {
+                System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: LA PLAYA " + i + " NO ESTA EN USO" + ESPACIO + ANSI_RESET);
+            }
+        }
+
+        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: SE HAN ENVIADO UN TOTAL DE " + Almazon.cinta.size() + " PEDIDOS" + ESPACIO + ANSI_RESET);
+    }
+
+    /*
+    * TODO: BORRAR ESTO ANTES DE ENTREGAR
+    * Que coño hace esto? Buena pregunta.
+    * Tenemos una lista de hilos que estan trabajando actualmente (empleadosTrabajando)
+    * Se mira la lista del personal, disponible en Almazon. Cada Personal guarda su Thread id.
+    * Teniendo en cuenta esto, se puede conseguir un conjunto de todos los hilos y comprobar los Thread id. Si coinciden, es que
+    * el hilo en cuestion esta trabajando y se mete en la lista.
+    * Esta lista luego se usa para interrumpir a todos los que trabajan para decir que su turno ha terminado o acabado
+    *
+    * TODO: Implementar lo que hacen las interrupciones (metodo tarea())
+    */
+    public void trabajoEncargado(){
+        float segundosPorTurno = 24 / Almazon.NUM_TURNOS;
+        float segundoComienzoTurno = System.currentTimeMillis() / 1000;
+        int nRevisiones = 10;
+        long periodoTurno = (long) segundosPorTurno / nRevisiones;
+
+        ArrayList<Thread> empleadosTrabajando = new ArrayList<>();
+
+        while(true){
+            empleadosTrabajando.clear();
+            comprobarEstadoAlmazon();
+
+            Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+            for(Personal p : Almazon.personal){
+                for(Thread t : threadSet){
+                    if(p.id == t.getId()){
+                        empleadosTrabajando.add(t);
+                        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: EL EMPLEADO " + p.id + " TIENE EL ESTADO " + t.getState().toString() + ESPACIO + ANSI_RESET);
+                    }
+                }
+            }
+
+            System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "------------------------------------------------------" + ESPACIO + ANSI_RESET);
+
+            float segundosTranscurridos = (System.currentTimeMillis() / 1000) - segundoComienzoTurno;
+            if(segundosTranscurridos >= segundosPorTurno){
+                System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: CAMBIO DE TURNO" + ESPACIO + ANSI_RESET);
+                for(Thread t : empleadosTrabajando){
+                    t.interrupt();
+                }
+                segundoComienzoTurno = System.currentTimeMillis() / 1000;
+            }
+
+
+            try {
+                Thread.sleep(periodoTurno * Almazon.segundoConvertido);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
 }
