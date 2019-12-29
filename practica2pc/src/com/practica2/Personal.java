@@ -1,6 +1,7 @@
 package com.practica2;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,6 +32,7 @@ public class Personal {
     private static ReentrantLock mutexPedidosEnviados = new ReentrantLock();
     private static ReentrantLock mutexPedidosErroneos = new ReentrantLock();
     private static ReentrantLock mutexNotificacionLimpieza = new ReentrantLock();
+    private static ReentrantLock leerPedidos = new ReentrantLock();
 
 
     private final Object canalComunicacion;
@@ -76,14 +78,16 @@ public class Personal {
 
     public void trabajoAdministrativo() throws InterruptedException {
         while (true) {
+
             Pedido p = Almazon.pedidos.peek();
             if (p != null && p.isPagado()) {
                 synchronized (canalComunicacion){
                     hayPedidoNuevo.set(true);
                     canalComunicacion.notify();
                 }
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + Thread.currentThread().getId() + " PEDIDO CORRECTO" + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + Thread.currentThread().getId() + " PEDIDO CORRECTO "  + p.getId() + ESPACIO + ANSI_RESET);
             } else {
+
                 System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + Thread.currentThread().getId() + " PEDIDO INCORRECTO O NO HAY PEDIDO" + ESPACIO + ANSI_RESET);
             }
             Thread.sleep(1000);
@@ -104,17 +108,16 @@ public class Personal {
 
 
     private Pedido tratarPedidoErroneo(Pedido mal){
-        int i = 0;
+
         int num = (int) (Math.random() * POS_ERROR);
         if (num % POS_ERROR == 0) {
         //hay error pero da igual donde
             return mal;
         }
-        for(Integer aux : mal.getListaProductos()){
+       for(int i=0; i<mal.getListaProductos().size();i++){
             if(!mal.getListaProductos().get(i).equals(mal.getNotaOriginal().get(i))){
-                aux = mal.getNotaOriginal().get(i);
+                mal.getListaProductos().set(i,mal.getNotaOriginal().get(i));
             }
-            i++;
         }
         return mal;
     }

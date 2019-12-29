@@ -45,6 +45,10 @@ public class Pedido{
         this.id = id;
     }
 
+    public void setListaProductos(ArrayList<Integer> listaProductos) {
+        this.listaProductos = listaProductos;
+    }
+
     public ArrayList<Integer> getNotaOriginal() {
         return notaOriginal;
     }
