@@ -25,7 +25,7 @@ public class Almazon {
     private static Object lockLimpiezaEmpaquetaP;
     private static Object lockLimpiezaEmpaquetaPVuelta;
 
-    private final int N_CLIENTES = 3;
+    private final int N_CLIENTES = 6;
     private final int N_ADMINISTRATIVOS = 2;
     private final int N_RECOGEPEDIDOS = 4;
     private final int N_EMPAQUETAPEDIDOS = 3;
