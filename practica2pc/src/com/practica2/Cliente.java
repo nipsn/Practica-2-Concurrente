@@ -1,26 +1,41 @@
 package com.practica2;
 
-import java.util.ArrayList;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Cliente {
-    int tercioInactivo;
-    long tiempoComienzo;
-    //TODO: Hacer compras aleatorias. Dormir tiempo aleatorio, pero leer enunciado; tienen un tiempo en el que dejan de comprar
+    /*
+     * ╔════════════════════════════════════════════════════╗
+     * ║               «VARIABLES CONFIGURABLES»            ║
+     * ╠════════════════════════════════════════════════════╣
+     */
+    //public static final int MAX_NUM_PRODUCTOS_POR_PEDIDO = 10;
+        public static final int NUM_PRODUCTOS_ALMAZON = 1000;
+        public static final int MAX_HORAS_ENTRE_PEDIDOS = 2;
+        public static final int POS_PEDIDO_NO_PAGADO = 100;
+    /*
+     * ║                                                    ║
+     * ╚════════════════════════════════════════════════════╝
+     */
     public void comprar() throws InterruptedException {
-        tiempoComienzo = System.currentTimeMillis() / 1000; //segundo en el que comienza
         CopyOnWriteArrayList<Integer> compra = new CopyOnWriteArrayList<>();
+        int nProductos;
+        //boolean pagado;
         while(true){
             compra.clear();
+//            nProductos = (int) (Math.random() * MAX_NUM_PRODUCTOS_POR_PEDIDO);
+            nProductos = 5;
+            for(int i = 0;i < nProductos;i++)
+                compra.add((int) (Math.random() * NUM_PRODUCTOS_ALMAZON));
 
+            //pagado = ((int)(Math.random() * POS_PEDIDO_NO_PAGADO)) % POS_PEDIDO_NO_PAGADO == 0;
 
-
-            compra.add(1);
-            compra.add(2);
-            compra.add(3);
-            compra.add(234);
             Almazon.pedidos.add(new Pedido(compra,true));
-            Thread.sleep(5*Almazon.segundoConvertido);
+
+            if(((int)(Math.random() * 100)) % 100 == 0){
+                Thread.sleep(Almazon.nSegundosSon24HorasReales/Almazon.NUM_TURNOS);
+            } else {
+                Thread.sleep(((int) (Math.random() * MAX_HORAS_ENTRE_PEDIDOS)) * (Almazon.nSegundosSon24HorasReales / 24));
+            }
         }
     }
 }

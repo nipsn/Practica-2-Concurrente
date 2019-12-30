@@ -6,11 +6,26 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Almazon {
-
-    public static final int nMinutosSon24HorasReales = 12 * 3600;
+/*
+* ╔══════════════════════════════════════════════╗
+* ║           «VARIABLES CONFIGURABLES»          ║
+* ╠══════════════════════════════════════════════╣
+*/
+    public static final int nSegundosSon24HorasReales = 300 * 1000; // ms
     public static final int NUM_TURNOS = 3;
-    public static int segundoConvertido;
+    public static final int NUM_PLAYAS = 20;
 
+    private final int N_CLIENTES = 50;
+    private final int N_ADMINISTRATIVOS = 4;
+    private final int N_RECOGEPEDIDOS = 6;
+    private final int N_EMPAQUETAPEDIDOS = 6;
+    private final int N_LIMPIEZA = 2;
+    private final int N_ENCARGADOS = 2;
+/*
+* ║       «EXISTEN MAS VARIABLES EDITABLES       ║
+* ║              EN OTROS METODOS»               ║
+* ╚══════════════════════════════════════════════╝
+*/
     public static ArrayList<Cliente> clientela;
     public static ArrayList<Personal> personal;
 
@@ -25,15 +40,7 @@ public class Almazon {
     private static Object lockLimpiezaEmpaquetaP;
     private static Object lockLimpiezaEmpaquetaPVuelta;
 
-    private final int N_CLIENTES = 6;
-    private final int N_ADMINISTRATIVOS = 4;
-    private final int N_RECOGEPEDIDOS = 8;
-    private final int N_EMPAQUETAPEDIDOS = 6;
-    private final int N_LIMPIEZA = 4;
-    private final int N_ENCARGADOS = 2;
-    // todo: no tiene sentido poner mas de un encargado por turno (poner en la memoria)
 
-    public static final int NUM_PLAYAS = 50;
 
     public static final int T_ADMINISTRATIVO = 1;
     public static final int T_RECOGEPEDIDOS = 2;
@@ -44,9 +51,9 @@ public class Almazon {
     public static AtomicInteger numPedidos;
     public static AtomicInteger cuentaEnviados;
     public static int turnoActual;
+
     public static void main(String[] args) throws InterruptedException {
 
-        segundoConvertido = nMinutosSon24HorasReales * 60 / 86400;
 
         pedidos = new LinkedBlockingQueue<>();
         pedidosRecogidos = new LinkedBlockingQueue<>();
@@ -69,7 +76,7 @@ public class Almazon {
         new Almazon().exec();
     }
 
-    public void exec() throws InterruptedException {
+    public void exec() {
         clientela = new ArrayList<>();
         personal = new ArrayList<>();
 

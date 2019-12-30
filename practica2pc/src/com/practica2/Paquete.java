@@ -1,7 +1,5 @@
 package com.practica2;
 
-import java.util.ArrayList;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Paquete {

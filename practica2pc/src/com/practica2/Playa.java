@@ -5,7 +5,16 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 public class Playa {
-    private final int MAX = 20;
+    /*
+     * ╔══════════════════════════════════════════════╗
+     * ║         «VARIABLES CONFIGURABLES»            ║
+     * ╠══════════════════════════════════════════════╣
+     */
+                 private final int MAX = 20;
+    /*
+     * ║                                              ║
+     * ╚══════════════════════════════════════════════╝
+     */    
     private BlockingQueue<Pedido> contenido;
     private boolean sucia;
 
