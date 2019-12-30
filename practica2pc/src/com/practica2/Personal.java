@@ -63,30 +63,40 @@ public class Personal {
         this.id = Thread.currentThread().getId();
         if (this.tipo == Almazon.T_ADMINISTRATIVO) {
             try {
+                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " EMPIEZA A TRABAJAR (SE DUERME)"  + ESPACIO + ANSI_RESET);
+                Thread.sleep(3000);
                 trabajoAdministrativo();
             }  catch (InterruptedException e){
                 this.trabajo = this.turno == Almazon.turnoActual;
             }
         } else if (this.tipo == Almazon.T_RECOGEPEDIDOS) {
             try {
+                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " EMPIEZA A TRABAJAR (SE DUERME)" + ESPACIO + ANSI_RESET);
+                Thread.sleep(3000);
                 trabajoRecogePedidos();
             }  catch (InterruptedException e){
                 this.trabajo = this.turno == Almazon.turnoActual;
             }
         } else if (this.tipo == Almazon.T_EMPAQUETAPEDIDOS) {
             try {
+                System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " EMPIEZA A TRABAJAR (SE DUERME)"  + ESPACIO + ANSI_RESET);
+                Thread.sleep(3000);
                 trabajoEmpaquetaPedidos();
             }  catch (InterruptedException e){
                 this.trabajo = this.turno == Almazon.turnoActual;
             }
         } else if (this.tipo == Almazon.T_LIMPIEZA) {
             try {
+                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " EMPIEZA A TRABAJAR (SE DUERME) "  + ESPACIO + ANSI_RESET);
+                Thread.sleep(3000);
                 trabajoLimpieza();
             }  catch (InterruptedException e){
                 this.trabajo = this.turno == Almazon.turnoActual;
             }
         } else if (this.tipo == Almazon.T_ENCARGADO) {
             try {
+                System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO " + Almazon.pedidos.size() + " EMPIEZA A TRABAJAR (SE DUERME)" + ESPACIO + ANSI_RESET);
+                Thread.sleep(3000);
                 trabajoEncargado();
             }  catch (InterruptedException e){
                 try {
@@ -180,13 +190,13 @@ public class Personal {
                     if (mutexPedidosErroneos.isHeldByCurrentThread())
                         mutexPedidosErroneos.unlock();
 
-                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATANDO PEDIDO ERRONEO" + ESPACIO + ANSI_RESET);
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATANDO PEDIDO ERRONEO " + nuevo.getId()+ ESPACIO + ANSI_RESET);
 
                     int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
                     // si la playa esta sucia me bloqueo
 //                    while (Almazon.todasPlayas[miPlaya].isSucia()) ;
 
-                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO "+ nuevo.getId()+ " EN PLAYA" + ESPACIO + ANSI_RESET);
                     Almazon.todasPlayas[miPlaya].add(nuevo);
 
                 } else {
@@ -318,13 +328,10 @@ public class Personal {
         while (true) {
             if (trabajo) {
                 synchronized (canalComunicacion) {
-                    System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " YA SE HA LIMPIADO LA PLAYA Y SE DUERME " + ESPACIO + ANSI_RESET);
                     canalComunicacion.wait();
                 }
-                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " HA DESPERTADO " + ESPACIO + ANSI_RESET);
                 mutexLimpiar.lock();//para que la funcion de limpiar sea atomica y nadie pueda interrumpir el proceso
                 if (limpiar.get()) {
-                    System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " VA A LIMPIAR UNA PLAYA " + ESPACIO + ANSI_RESET);
                     limpiarPlaya();
                     playaALimpiar.set(-1);
                     limpiar.set(false);
