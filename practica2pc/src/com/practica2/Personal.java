@@ -1,6 +1,7 @@
 package com.practica2;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -20,10 +21,10 @@ public class Personal {
     private final int POS_ERROR = 100; // 1 de cada 100
     private final int POS_PEDIDO_ROTO = 20; // el 5%
 
+
     public static AtomicInteger playaALimpiar;
     public static AtomicBoolean hayPedidoNuevo;
     public static AtomicBoolean limpiar;
-    public static AtomicInteger ultimoPedido;
 
 
     private static ReentrantLock mutexPlayas = new ReentrantLock();
@@ -32,79 +33,103 @@ public class Personal {
     private static ReentrantLock mutexPedidosErroneos = new ReentrantLock();
     private static ReentrantLock mutexNotificacionLimpieza = new ReentrantLock();
     private static ReentrantLock mutexLimpiar = new ReentrantLock();
-    private static ReentrantLock mutexLeerPedidos = new ReentrantLock();
 
 
     private int tipo;
+    private int turno;
     private boolean trabajo;
     private final Object canalComunicacion;
     private final Object canalComunicacion2;
     private long id;
     private Thread.State estado;
 
-    public Personal(int tipo, Object comunicador, Object comunicador2) {
+
+    public Personal(int tipo, int turno, Object comunicador, Object comunicador2) {
         this.tipo = tipo;
+        this.turno = turno;
+
+        trabajo = turno == 0;
 
         hayPedidoNuevo = new AtomicBoolean();
         limpiar = new AtomicBoolean();
         playaALimpiar = new AtomicInteger(-1);
-        //ultimoPedido =new AtomicInteger(-1);
 
         canalComunicacion = comunicador;
         canalComunicacion2 = comunicador2;
     }
 
 
-    public void tarea() throws InterruptedException {
+    public void tarea(){
         this.id = Thread.currentThread().getId();
-
         if (this.tipo == Almazon.T_ADMINISTRATIVO) {
             try {
                 trabajoAdministrativo();
-            } catch (InterruptedException e){
-                // pongo la variable
-                // TODO: IMPLEMENTAR MANEJADOR DE INTERRUPCION (BOOLEANO TRABAJA/NO TRABAJA)
-                // TODO: CAMBIAR LOS BUCLES WHILE?? QUIZA DENTRO DEL WHILE DISTINGUIR SI TRABAJA O NO
-                // TODO: LA INTERRUPCION DONDE VA?? EN CADA trabajo() O PUEDE IR EN tarea() ??
+            }  catch (InterruptedException e){
+                this.trabajo = this.turno == Almazon.turnoActual;
             }
         } else if (this.tipo == Almazon.T_RECOGEPEDIDOS) {
-            trabajoRecogePedidos();
+            try {
+                trabajoRecogePedidos();
+            }  catch (InterruptedException e){
+                this.trabajo = this.turno == Almazon.turnoActual;
+            }
         } else if (this.tipo == Almazon.T_EMPAQUETAPEDIDOS) {
-            trabajoEmpaquetaPedidos();
+            try {
+                trabajoEmpaquetaPedidos();
+            }  catch (InterruptedException e){
+                this.trabajo = this.turno == Almazon.turnoActual;
+            }
         } else if (this.tipo == Almazon.T_LIMPIEZA) {
-            trabajoLimpieza();
+            try {
+                trabajoLimpieza();
+            }  catch (InterruptedException e){
+                this.trabajo = this.turno == Almazon.turnoActual;
+            }
         } else if (this.tipo == Almazon.T_ENCARGADO) {
-            trabajoEncargado();
+            try {
+                trabajoEncargado();
+            }  catch (InterruptedException e){
+                try {
+                    Thread.sleep(7200 * Almazon.segundoConvertido * 24/3);
+                } catch (InterruptedException ex) {
+                    System.err.println("SE HA INTENTADO DESPERTAR A UN ENCARGADO DE SU SIESTA. ESO ESTA FEO");
+                    ex.printStackTrace();
+                }
+            }
         }
     }
 
     public void trabajoAdministrativo() throws InterruptedException {
         while (true) {
+            if (trabajo) {
+                Pedido p = Almazon.pedidos.peek();
 
-            Pedido p = Almazon.pedidos.peek();
-
-            if (p != null && p.isPagado()) {
-                synchronized (canalComunicacion){
-                    hayPedidoNuevo.set(true);
-                    canalComunicacion.notify();
+                if (p != null && p.isPagado()) {
+                    synchronized (canalComunicacion) {
+                        hayPedidoNuevo.set(true);
+                        canalComunicacion.notify();
+                    }
+                    System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " PEDIDO CORRECTO " + p.getId() + ESPACIO + ANSI_RESET);
+                } else {
+                    System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " PEDIDO INCORRECTO O NO HAY PEDIDO" + ESPACIO + ANSI_RESET);
                 }
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " PEDIDO CORRECTO "  + p.getId() + ESPACIO + ANSI_RESET);
+                Thread.sleep(Almazon.segundoConvertido);
+
+                //ademas recibe notificacion de empaquetapedidos cuando un producto sale para mandar un correo (y hacer las gestiones oportunas)
+                mutexPedidosEnviados.lock();
+
+                if (!Almazon.pedidosEnviados.isEmpty()) {
+                    Pedido e = Almazon.pedidosEnviados.poll();
+                    if (mutexPedidosEnviados.isHeldByCurrentThread())
+                        mutexPedidosEnviados.unlock();
+                    System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " ENVIA CORREO DEL PEDIDO " + e.getId() + ESPACIO + ANSI_RESET);
+                } else {
+                    if (mutexPedidosEnviados.isHeldByCurrentThread())
+                        mutexPedidosEnviados.unlock();
+                }
             } else {
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " PEDIDO INCORRECTO O NO HAY PEDIDO" + ESPACIO + ANSI_RESET);
-            }
-            Thread.sleep(1000);
-
-            //ademas recibe notificacion de empaquetapedidos cuando un producto sale para mandar un correo (y hacer las gestiones oportunas)
-            mutexPedidosEnviados.lock();
-
-            if(!Almazon.pedidosEnviados.isEmpty()){
-                Pedido e = Almazon.pedidosEnviados.poll();
-                if(mutexPedidosEnviados.isHeldByCurrentThread())
-                    mutexPedidosEnviados.unlock();
-                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " ENVIA CORREO DEL PEDIDO " + e.getId() + ESPACIO + ANSI_RESET);
-            }else{
-                if(mutexPedidosEnviados.isHeldByCurrentThread())
-                    mutexPedidosEnviados.unlock();
+                System.out.println(ANSI_PURPLE_BACKGROUND + ESPACIO + ANSI_BLACK + "ADMINISTRATIVO " + id + " DEJA DE TRABAJAR "  + ESPACIO + ANSI_RESET);
+                Thread.sleep(Integer.MAX_VALUE);
             }
         }
     }
@@ -124,8 +149,8 @@ public class Personal {
         }
         return mal;
     }
-    private Pedido recogerPedidos(Pedido inicial){
-        ArrayList<Integer> carrito = new ArrayList<>();
+    private Pedido recogerPedidos(Pedido inicial) throws InterruptedException {
+        CopyOnWriteArrayList<Integer> carrito = new CopyOnWriteArrayList<>();
         int i = 0;
         int num;
         for (Integer producto : inicial.getListaProductos()) {
@@ -139,76 +164,73 @@ public class Personal {
                 carrito.add(inicial.getListaProductos().get(i));
             }
             i++;
-            try {
-                Thread.sleep((long) (Math.random() * 2) * 1000); //de 0 a 2 segundos a dormir
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            Thread.sleep((long) (Math.random() * 2) * Almazon.segundoConvertido); //de 0 a 2 segundos a dormir
         }
         return new Pedido(carrito, inicial.getNotaOriginal(), inicial.getId());
     }
 
 
-    public void trabajoRecogePedidos(){
+    public void trabajoRecogePedidos() throws InterruptedException {
         while (true) {
-            Pedido nuevo;
-            mutexPedidosErroneos.lock();
-            if (!Almazon.pedidosErroneos.isEmpty()) {
-                nuevo = tratarPedidoErroneo(Objects.requireNonNull(Almazon.pedidosErroneos.poll()));
-                if(mutexPedidosErroneos.isHeldByCurrentThread())
-                    mutexPedidosErroneos.unlock();
+            if (trabajo) {
+                Pedido nuevo;
+                mutexPedidosErroneos.lock();
+                if (!Almazon.pedidosErroneos.isEmpty()) {
+                    nuevo = tratarPedidoErroneo(Objects.requireNonNull(Almazon.pedidosErroneos.poll()));
+                    if (mutexPedidosErroneos.isHeldByCurrentThread())
+                        mutexPedidosErroneos.unlock();
 
-                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATANDO PEDIDO ERRONEO" + ESPACIO + ANSI_RESET);
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATANDO PEDIDO ERRONEO" + ESPACIO + ANSI_RESET);
 
-                int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
-                // si la playa esta sucia me bloqueo
-                while(Almazon.todasPlayas[miPlaya].isSucia());
-
-                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
-                Almazon.todasPlayas[miPlaya].add(nuevo);
-
-            } else {
-                if(mutexPedidosErroneos.isHeldByCurrentThread())
-                    mutexPedidosErroneos.unlock();
-
-                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " ESPERA" + ESPACIO + ANSI_RESET);
-
-                synchronized (canalComunicacion){
-                    try {
-                        canalComunicacion.wait();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                Pedido p;
-
-                mutexPedidos.lock();
-                if(!Almazon.pedidos.isEmpty()){
-                    p = Almazon.pedidos.poll();
-                    if(mutexPedidos.isHeldByCurrentThread())
-                        mutexPedidos.unlock();
-
-                    assert p != null;
-                    Almazon.pedidosRecogidos.offer(p);
-
-                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATA PEDIDO NUEVO "+ p.getId() + ESPACIO + ANSI_RESET);
-
-                    nuevo = recogerPedidos(p);
                     int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
-
                     // si la playa esta sucia me bloqueo
-                    //while(Almazon.todasPlayas[miPlaya].isSucia());
+//                    while (Almazon.todasPlayas[miPlaya].isSucia()) ;
 
-                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO "+p.getId() +" EN PLAYA" + ESPACIO + ANSI_RESET);
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO EN PLAYA" + ESPACIO + ANSI_RESET);
                     Almazon.todasPlayas[miPlaya].add(nuevo);
 
                 } else {
-                    if (mutexPedidos.isHeldByCurrentThread())
-                        mutexPedidos.unlock();
-                }
-            }
+                    if (mutexPedidosErroneos.isHeldByCurrentThread())
+                        mutexPedidosErroneos.unlock();
 
+                    System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " ESPERA" + ESPACIO + ANSI_RESET);
+
+                    synchronized (canalComunicacion) {
+                        canalComunicacion.wait();
+                    }
+
+                    Pedido p;
+
+                    mutexPedidos.lock();
+                    if (!Almazon.pedidos.isEmpty()) {
+                        p = Almazon.pedidos.poll();
+                        if (mutexPedidos.isHeldByCurrentThread())
+                            mutexPedidos.unlock();
+
+                        assert p != null;
+                        Almazon.pedidosRecogidos.offer(p);
+
+                        System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " TRATA PEDIDO NUEVO " + p.getId() + ESPACIO + ANSI_RESET);
+
+                        nuevo = recogerPedidos(p);
+                        int miPlaya = (int) (Math.random() * Almazon.NUM_PLAYAS);
+
+                        // si la playa esta sucia me bloqueo
+                        //while(Almazon.todasPlayas[miPlaya].isSucia());
+
+                        System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " PONE PEDIDO " + p.getId() + " EN PLAYA" + ESPACIO + ANSI_RESET);
+                        Almazon.todasPlayas[miPlaya].add(nuevo);
+
+                    } else {
+                        if (mutexPedidos.isHeldByCurrentThread())
+                            mutexPedidos.unlock();
+                    }
+                }
+
+            }  else {
+                System.out.println(ANSI_GREEN_BACKGROUND + ESPACIO + ANSI_BLACK + "RECOGEPEDIDOS " + id + " DEJA DE TRABAJAR "  + ESPACIO + ANSI_RESET);
+                Thread.sleep(Integer.MAX_VALUE);
+            }
         }
     }
 
@@ -223,56 +245,58 @@ public class Personal {
         return encontrado.getListaProductos().equals(p.getListaProductos());
     }
 
-    public void trabajoEmpaquetaPedidos() {
+    public void trabajoEmpaquetaPedidos() throws InterruptedException {
         while (true) {
-            int playaElegida = (int) (Math.random() * Almazon.NUM_PLAYAS);
-            mutexPlayas.lock();
-            if(!Almazon.todasPlayas[playaElegida].isEmpty()) {
-                if (!Almazon.todasPlayas[playaElegida].isSucia()) {
-                    Pedido p = Almazon.todasPlayas[playaElegida].poll();
-                    if(mutexPlayas.isHeldByCurrentThread())
-                        mutexPlayas.unlock();
-                    int num = (int) (Math.random() * POS_PEDIDO_ROTO);
-                    //mutexNotificacionLimpieza.lock();
-                    boolean llamoLimpieza = (Almazon.cuentaEnviados.get()+1) % 10 == 0;
-                    if(!llamoLimpieza) playaALimpiar.set(playaElegida);
-                   //if(mutexNotificacionLimpieza.isHeldByCurrentThread()) mutexNotificacionLimpieza.unlock();
+            if (trabajo) {
+                int playaElegida = (int) (Math.random() * Almazon.NUM_PLAYAS);
+                mutexPlayas.lock();
+                if (!Almazon.todasPlayas[playaElegida].isEmpty()) {
+                    if (!Almazon.todasPlayas[playaElegida].isSucia()) {
+                        Pedido p = Almazon.todasPlayas[playaElegida].poll();
+                        if (mutexPlayas.isHeldByCurrentThread())
+                            mutexPlayas.unlock();
+                        int num = (int) (Math.random() * POS_PEDIDO_ROTO);
+                        //mutexNotificacionLimpieza.lock();
+                        boolean llamoLimpieza = (Almazon.cuentaEnviados.get() + 1) % 10 == 0;
+                        if (!llamoLimpieza) playaALimpiar.set(playaElegida);
+                        //if(mutexNotificacionLimpieza.isHeldByCurrentThread()) mutexNotificacionLimpieza.unlock();
 
-                    if (num % POS_PEDIDO_ROTO == 0 || llamoLimpieza) {
-                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " DETECTA PLAYA SUCIA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
-                        mutexNotificacionLimpieza.lock();
-                        Almazon.todasPlayas[playaElegida].setSucia(true);
+                        if (num % POS_PEDIDO_ROTO == 0 || llamoLimpieza) {
+                            System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " DETECTA PLAYA SUCIA " + playaALimpiar.get() + ESPACIO + ANSI_RESET);
+                            mutexNotificacionLimpieza.lock();
+                            Almazon.todasPlayas[playaElegida].setSucia(true);
 
-                        synchronized (canalComunicacion) {
-                            // llama y se espera hasta que limpien
+                            synchronized (canalComunicacion) {
+                                // llama y se espera hasta que limpien
 
-                            limpiar.set(true);
-                            canalComunicacion.notify();
-                            if(mutexNotificacionLimpieza.isHeldByCurrentThread()) mutexNotificacionLimpieza.unlock();
-                        }
-                        synchronized (canalComunicacion2) {
-                            try {
+                                limpiar.set(true);
+                                canalComunicacion.notify();
+                                if (mutexNotificacionLimpieza.isHeldByCurrentThread())
+                                    mutexNotificacionLimpieza.unlock();
+                            }
+                            synchronized (canalComunicacion2) {
                                 canalComunicacion2.wait();
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
                             }
                         }
-                    }
-                    if (comprobarPedido(p)) {
-                        Paquete paq = new Paquete(p.getListaProductos());
-                        paq.setSello(true);
-                        Almazon.cinta.offer(paq);
-                        Almazon.pedidosEnviados.offer(p);
-                        Almazon.cuentaEnviados.getAndIncrement();
-                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " ENVIA PEDIDO " + p.getId() + ESPACIO + ANSI_RESET);
-                    } else {
-                        System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + Thread.currentThread().getId() + " DETECTA ERROR EN EL PEDIDO " + p.getId() + " SE MANDA A REVISAR" + ESPACIO + ANSI_RESET);
-                        Almazon.pedidosErroneos.offer(p);
+                        if (comprobarPedido(p)) {
+                            Paquete paq = new Paquete(p.getListaProductos());
+                            paq.setSello(true);
+                            Almazon.cinta.offer(paq);
+                            Almazon.pedidosEnviados.offer(p);
+                            Almazon.cuentaEnviados.getAndIncrement();
+                            System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " ENVIA PEDIDO " + p.getId() + ESPACIO + ANSI_RESET);
+                        } else {
+                            System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + Thread.currentThread().getId() + " DETECTA ERROR EN EL PEDIDO " + p.getId() + " SE MANDA A REVISAR" + ESPACIO + ANSI_RESET);
+                            Almazon.pedidosErroneos.offer(p);
+                        }
                     }
                 }
+                if (mutexPlayas.isHeldByCurrentThread())
+                    mutexPlayas.unlock();
+            } else {
+                System.out.println(ANSI_BLUE_BACKGROUND + ESPACIO + ANSI_BLACK + "EMPAQUETAPEDIDOS " + id + " DEJA DE TRABAJAR "  + ESPACIO + ANSI_RESET);
+                Thread.sleep(Integer.MAX_VALUE);
             }
-            if(mutexPlayas.isHeldByCurrentThread())
-                mutexPlayas.unlock();
         }
     }
 
@@ -290,33 +314,34 @@ public class Personal {
         }
     }
 
-    public void trabajoLimpieza() {
+    public void trabajoLimpieza() throws InterruptedException {
         while (true) {
-            synchronized (canalComunicacion){
-                try {
-                    System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " YA SE HA LIMPIADO LA PLAYA Y SE DUERME " + ESPACIO + ANSI_RESET);
+            if (trabajo) {
+                synchronized (canalComunicacion) {
+                    System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " YA SE HA LIMPIADO LA PLAYA Y SE DUERME " + ESPACIO + ANSI_RESET);
                     canalComunicacion.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
-            }
-            System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " HA DESPERTADO " + ESPACIO + ANSI_RESET);
-            mutexLimpiar.lock();//para que la funcion de limpiar sea atomica y nadie pueda interrumpir el proceso
-            if(limpiar.get()) {
-                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO +  ANSI_BLACK + "LIMPIEZA " + id + " VA A LIMPIAR UNA PLAYA " + ESPACIO + ANSI_RESET);
-                limpiarPlaya();
-                playaALimpiar.set(-1);
-                limpiar.set(false);
-                if(mutexLimpiar.isHeldByCurrentThread())
-                    mutexLimpiar.unlock();
-            }else{
-                if(mutexLimpiar.isHeldByCurrentThread())
-                    mutexLimpiar.unlock();
-            }
+                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " HA DESPERTADO " + ESPACIO + ANSI_RESET);
+                mutexLimpiar.lock();//para que la funcion de limpiar sea atomica y nadie pueda interrumpir el proceso
+                if (limpiar.get()) {
+                    System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " VA A LIMPIAR UNA PLAYA " + ESPACIO + ANSI_RESET);
+                    limpiarPlaya();
+                    playaALimpiar.set(-1);
+                    limpiar.set(false);
+                    if (mutexLimpiar.isHeldByCurrentThread())
+                        mutexLimpiar.unlock();
+                } else {
+                    if (mutexLimpiar.isHeldByCurrentThread())
+                        mutexLimpiar.unlock();
+                }
 
 
-            synchronized (canalComunicacion2){
-                canalComunicacion2.notify();
+                synchronized (canalComunicacion2) {
+                    canalComunicacion2.notify();
+                }
+            } else {
+                System.out.println(ANSI_YELLOW_BACKGROUND + ESPACIO + ANSI_BLACK + "LIMPIEZA " + id + " DEJA DE TRABAJAR "  + ESPACIO + ANSI_RESET);
+                Thread.sleep(Integer.MAX_VALUE);
             }
         }
     }
@@ -326,7 +351,7 @@ public class Personal {
         System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "------------------------------------------------------" + ESPACIO + ANSI_RESET);
         System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: ENCARGADO REVISA:" + ESPACIO + ANSI_RESET);
         System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: LA LISTA DE PEDIDOS TIENE " + Almazon.pedidos.size() + " ELEMENTOS ACTUALMENTE" + ESPACIO + ANSI_RESET);
-        System.out.println("ENCARGADO: LA LISTA DE PEDIDOS ERRONEOS TIENE " + Almazon.pedidosErroneos.size() + " ELEMENTOS ACTUALMENTE");
+        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: LA LISTA DE PEDIDOS ERRONEOS TIENE " + Almazon.pedidosErroneos.size() + " ELEMENTOS ACTUALMENTE" + ESPACIO + ANSI_RESET);
         for(int i = 0;i < Almazon.NUM_PLAYAS;i++){
             if(!Almazon.todasPlayas[i].isEmpty()) {
                 System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: LA PLAYA " + i + " ESTA EN USO" + ESPACIO + ANSI_RESET);
@@ -349,45 +374,47 @@ public class Personal {
     *
     * TODO: Implementar lo que hacen las interrupciones (metodo tarea())
     */
-    public void trabajoEncargado(){
-        float segundosPorTurno = 24 / Almazon.NUM_TURNOS;
-        float segundoComienzoTurno = System.currentTimeMillis() / 1000;
-        int nRevisiones = 10;
-        long periodoTurno = (long) segundosPorTurno / nRevisiones;
+    public void trabajoEncargado() throws InterruptedException {
+        if(trabajo) {
+            float segundosPorTurno = 24 * 3600 / Almazon.NUM_TURNOS;
+            float segundoComienzoTurno = System.currentTimeMillis() / 1000;
+            int nRevisiones = 10;
+            long periodoTurno = (long) segundosPorTurno / nRevisiones;
 
-        ArrayList<Thread> empleadosTrabajando = new ArrayList<>();
-
-        while(true){
-            empleadosTrabajando.clear();
-            comprobarEstadoAlmazon();
+            ArrayList<Thread> empleadosTrabajando = new ArrayList<>();
 
             Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-            for(Personal p : Almazon.personal){
-                for(Thread t : threadSet){
-                    if(p.id == t.getId()){
-                        empleadosTrabajando.add(t);
-                        System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: EL EMPLEADO " + p.id + " TIENE EL ESTADO " + t.getState().toString() + ESPACIO + ANSI_RESET);
+            while (true) {
+                empleadosTrabajando.clear();
+                comprobarEstadoAlmazon();
+
+                for (Personal p : Almazon.personal) {
+                    for (Thread t : threadSet) {
+                        if (p.id == t.getId()) {
+                            empleadosTrabajando.add(t);
+                            System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: EL EMPLEADO " + p.id + " TIENE EL ESTADO " + t.getState().toString() + ESPACIO + ANSI_RESET);
+                        }
                     }
                 }
-            }
 
-            System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "------------------------------------------------------" + ESPACIO + ANSI_RESET);
+                System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "------------------------------------------------------" + ESPACIO + ANSI_RESET);
 
-            float segundosTranscurridos = (System.currentTimeMillis() / 1000) - segundoComienzoTurno;
-            if(segundosTranscurridos >= segundosPorTurno){
-                System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: CAMBIO DE TURNO" + ESPACIO + ANSI_RESET);
-                for(Thread t : empleadosTrabajando){
-                    t.interrupt();
+                float segundosTranscurridos = (System.currentTimeMillis() / 1000) - segundoComienzoTurno;
+                if (segundosTranscurridos >= segundosPorTurno) {
+                    System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO: CAMBIO DE TURNO" + ESPACIO + ANSI_RESET);
+                    for (Thread t : empleadosTrabajando) {
+                        t.interrupt();
+                    }
+                    segundoComienzoTurno = System.currentTimeMillis() / 1000;
                 }
-                segundoComienzoTurno = System.currentTimeMillis() / 1000;
-            }
+                Almazon.turnoActual = (Almazon.turnoActual + 1) % Almazon.NUM_TURNOS;
 
 
-            try {
-                Thread.sleep(periodoTurno * Almazon.segundoConvertido);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.sleep(10*Almazon.segundoConvertido);
             }
+        } else {
+            System.out.println(ANSI_RED_BACKGROUND + ESPACIO + ANSI_BLACK + "ENCARGADO " + id + " DEJA DE TRABAJAR "  + ESPACIO + ANSI_RESET);
+            Thread.sleep(Integer.MAX_VALUE);
         }
     }
 

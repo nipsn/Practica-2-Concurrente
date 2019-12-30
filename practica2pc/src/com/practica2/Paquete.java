@@ -2,20 +2,21 @@ package com.practica2;
 
 import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Paquete {
-    private ArrayList<Integer> listaProductos;
+    private CopyOnWriteArrayList<Integer> listaProductos;
     private boolean sello;
 
-    public Paquete(ArrayList<Integer> productos){
-        listaProductos = new ArrayList<>(20); // hay que hacer una constante
+    public Paquete(CopyOnWriteArrayList<Integer> productos){
+        listaProductos = productos;
     }
 
-    public ArrayList<Integer> getListaProductos() {
+    public CopyOnWriteArrayList<Integer> getListaProductos() {
         return listaProductos;
     }
 
-    public void setListaProductos(ArrayList<Integer> listaProductos) {
+    public void setListaProductos(CopyOnWriteArrayList<Integer> listaProductos) {
         this.listaProductos = listaProductos;
     }
 
