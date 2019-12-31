@@ -30,7 +30,6 @@ public class Almazon {
     public static ArrayList<Personal> personal;
 
     public static BlockingQueue<Pedido> pedidos;
-    public static BlockingQueue<Pedido> pedidosRecogidos;
     public static BlockingQueue<Pedido> pedidosErroneos;
     public static BlockingQueue<Paquete> cinta;
     public static BlockingQueue<Pedido> pedidosEnviados;
@@ -56,7 +55,6 @@ public class Almazon {
 
 
         pedidos = new LinkedBlockingQueue<>();
-        pedidosRecogidos = new LinkedBlockingQueue<>();
         pedidosErroneos = new LinkedBlockingQueue<>();
         cinta = new LinkedBlockingQueue<>();
         pedidosEnviados = new LinkedBlockingQueue<>();

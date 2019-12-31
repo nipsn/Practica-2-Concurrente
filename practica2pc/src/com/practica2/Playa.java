@@ -48,4 +48,7 @@ public class Playa {
     public boolean isEmpty(){
         return contenido.isEmpty();
     }
+    public int size(){
+        return contenido.size();
+    }
 }

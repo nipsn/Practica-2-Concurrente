@@ -5,7 +5,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class Pedido{
     private int id;
     private boolean pagado;
-    private boolean recogido;
     private CopyOnWriteArrayList<Integer> listaProductos;
     private CopyOnWriteArrayList<Integer> notaOriginal;
 
@@ -14,7 +13,6 @@ public class Pedido{
         this.pagado = pagado;
         listaProductos = productos;
         notaOriginal = productos;
-        recogido = false;
     }
     public Pedido(){
         id=-1;
@@ -52,7 +50,4 @@ public class Pedido{
         return notaOriginal;
     }
 
-    public boolean isRecogido() {
-        return recogido;
-    }
 }
